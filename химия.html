@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- SEO: заголовок для поиска и вкладки браузера -->
+  <title>Алхимик — интерактивная химическая лаборатория для школьников</title>
+
+  <!-- SEO: описание в результатах поиска -->
+  <meta name="description" content="Бесплатная обучающая игра по химии: смешивай вещества в виртуальной колбе, смотри реакции с эффектами, изучай таблицу Менделеева и открывай новые соединения. Проект для школьников, не заменяет реальный эксперимент.">
+
+  <!-- Сюда позже вставь код подтверждения от Яндекс Вебмастера (убери комментарий) -->
+  <!-- <meta name="yandex-verification" content="ВСТАВЬ_СЮДА_КОД_ОТ_ВЕБМАСТЕРА"> -->
+
+  <style>
+    :root{
+      --bg:#0a0e1a; --panel:rgba(24,32,52,.8); --panel2:rgba(44,58,88,.5);
+      --text:#eaf0fa; --muted:#93a1bd; --accent:#5ad1ff; --accent2:#b388ff;
+      --ok:#69f0ae; --err:#ff8a80; --wood1:#5d4037; --wood2:#3e2723;
+      --glow:0 0 16px rgba(90,209,255,.4);
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{
+      background:radial-gradient(1100px 650px at 85% -10%, #1c2a55 0%, transparent 60%),
+                 radial-gradient(900px 600px at -10% 110%, #3a1b55 0%, transparent 55%),
+                 var(--bg);
+      color:var(--text); font-family:'Segoe UI',Arial,sans-serif;
+      padding:14px; min-height:100vh; overflow-x:hidden;
+    }
+    header{text-align:center; padding:10px 0 4px; animation:fadeDown .8s ease both}
+    h1{
+      font-size:clamp(1.4rem,3.6vw,2.2rem);
+      background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent));
+      background-size:200% auto; -webkit-background-clip:text; background-clip:text;
+      color:transparent; animation:shine 6s linear infinite;
+    }
+    @keyframes shine{to{background-position:200% center}}
+    @keyframes fadeDown{from{opacity:0;transform:translateY(-16px)}to{opacity:1;transform:none}}
+    @keyframes rise{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:none}}
+    @keyframes popIn{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:scale(1)}}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:.35}}
+    @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+
+    .xpbar{max-width:420px; margin:10px auto 4px; background:var(--panel2);
+      border-radius:20px; height:20px; position:relative; overflow:hidden;
+      border:1px solid rgba(120,160,255,.25)}
+    .xpbar .fill{height:100%; width:0; border-radius:20px;
+      background:linear-gradient(90deg,var(--accent),var(--accent2));
+      transition:width .6s ease; box-shadow:var(--glow)}
+    .xpbar span{position:absolute; inset:0; display:flex; align-items:center;
+      justify-content:center; font-size:.78rem; font-weight:600; text-shadow:0 1px 2px #000}
+    .lvltxt{color:var(--muted); font-size:.85rem; margin-bottom:8px}
+
+    /* ===== МЕНЮ ===== */
+    nav{
+      max-width:1000px; margin:8px auto 14px; display:flex; gap:6px; justify-content:center;
+      flex-wrap:wrap; background:var(--panel); border-radius:16px; padding:8px;
+      border:1px solid rgba(120,160,255,.16); backdrop-filter:blur(10px);
+      animation:fadeDown .7s ease both;
+    }
+    nav button{
+      background:transparent; color:var(--muted); border:1px solid transparent;
+      border-radius:10px; padding:9px 16px; cursor:pointer; font-size:.92rem;
+      transition:.2s;
+    }
+    nav button:hover{color:var(--text); background:var(--panel2)}
+    nav button.active{
+      color:#0a0e1a; background:linear-gradient(90deg,var(--accent),var(--accent2));
+      font-weight:700; box-shadow:var(--glow);
+    }
+    .tabpage{display:none; animation:rise .5s ease both}
+    .tabpage.active{display:block}
+
+    .row{display:flex; gap:16px; flex-wrap:wrap; justify-content:center; align-items:flex-start}
+    .panel{
+      background:var(--panel); backdrop-filter:blur(14px);
+      border:1px solid rgba(120,160,255,.16); border-radius:18px;
+      padding:18px; box-shadow:0 8px 32px rgba(0,0,0,.4);
+    }
+    .panel.shelf{flex:1 1 300px; max-width:470px}
+    .panel.lab{flex:1 1 360px; max-width:500px; text-align:center}
+    .panel.side{flex:1 1 260px; max-width:360px}
+    .panel:nth-child(2){animation-delay:.12s}
+    .panel:nth-child(3){animation-delay:.24s}
+
+    h2{font-size:1.02rem; margin-bottom:12px; color:var(--accent); display:flex; align-items:center; gap:8px}
+    h2::before{content:""; width:9px;height:9px;border-radius:50%;
+      background:var(--accent); box-shadow:var(--glow); animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.45);opacity:.55}}
+
+    /* ===== Деревянная полка + бутылки ===== */
+    .shelfunit{position:relative; padding:26px 10px 30px; border-radius:10px;
+      background:
+        repeating-linear-gradient(90deg, rgba(0,0,0,.18) 0 2px, transparent 2px 46px),
+        linear-gradient(180deg,var(--wood1),var(--wood2));
+      box-shadow:inset 0 2px 8px rgba(0,0,0,.5), 0 6px 14px rgba(0,0,0,.4);}
+    .shelfunit::after{
+      content:""; position:absolute; left:0; right:0; bottom:0; height:14px;
+      background:linear-gradient(180deg,#6d4c41,#4e342e);
+      border-radius:0 0 8px 8px; box-shadow:0 4px 8px rgba(0,0,0,.55);
+    }
+    .chips{display:flex; flex-wrap:wrap; gap:12px; justify-content:center; align-items:flex-end}
+    .hint{color:var(--muted); font-size:.8rem; margin-top:12px}
+
+    .vial{position:relative; width:58px; height:96px; background:transparent;
+      border:none; padding:0; cursor:pointer;
+      filter:drop-shadow(0 6px 5px rgba(0,0,0,.45));
+      transition:transform .15s, filter .15s;}
+    .vial:hover{transform:translateY(-6px) scale(1.07); filter:drop-shadow(0 0 10px rgba(90,209,255,.7))}
+    .vial:active{transform:scale(.92)}
+    .vial .cork{
+      position:absolute; left:19px; top:0; width:20px; height:14px;
+      background:linear-gradient(180deg,#c8a165,#9a7544);
+      border-radius:5px 5px 2px 2px;
+      box-shadow:inset 0 -2px 3px rgba(0,0,0,.3);
+    }
+    .vial .neck{
+      position:absolute; left:21px; top:13px; width:16px; height:16px;
+      border:1.5px solid rgba(190,215,235,.6); border-bottom:none;
+      border-radius:4px 4px 0 0;
+      background:linear-gradient(90deg, rgba(255,255,255,.28), rgba(255,255,255,.05) 45%, rgba(255,255,255,.22));
+    }
+    .vial .glass{
+      position:absolute; left:7px; top:28px; width:44px; height:64px;
+      border-radius:7px 7px 15px 15px; overflow:hidden;
+      border:1.5px solid rgba(190,215,235,.6); border-top:none;
+      background:linear-gradient(90deg, rgba(255,255,255,.30), rgba(255,255,255,.05) 35%, rgba(255,255,255,.02) 65%, rgba(255,255,255,.25));
+    }
+    .vial .glass::before{
+      content:""; position:absolute; left:0; right:0; bottom:0; height:66%;
+      background:linear-gradient(180deg, var(--liq,transparent), rgba(0,0,0,.35) 130%);
+      box-shadow:inset 0 3px 4px rgba(255,255,255,.35);
+      border-top:2px solid rgba(255,255,255,.35);
+    }
+    .vial .glass::after{
+      content:""; position:absolute; left:6px; top:4px; width:6px; height:50%;
+      border-radius:6px; background:rgba(255,255,255,.4); transform:rotate(4deg);
+    }
+    .vial .lbl{
+      position:absolute; left:5px; top:56px; width:48px; text-align:center; z-index:2;
+      font-size:.56rem; font-weight:800; color:#26221b;
+      background:linear-gradient(180deg,#fdf6e3,#e8dcc0);
+      border:1px solid #c9b98f; border-radius:3px; padding:2px 0;
+      box-shadow:0 1px 2px rgba(0,0,0,.4);
+      white-space:nowrap; overflow:hidden;
+    }
+    .vial.locked{filter:grayscale(1) brightness(.5) drop-shadow(0 6px 5px rgba(0,0,0,.45)); opacity:.75; cursor:not-allowed}
+    .vial.locked:hover{transform:none; filter:grayscale(1) brightness(.5)}
+    .vial.fresh{filter:drop-shadow(0 0 14px rgba(105,240,174,.9)); animation:popIn .4s ease both}
+    .mini{width:20px; height:20px; border-radius:50%; display:inline-block;
+      vertical-align:middle; margin-right:6px;
+      box-shadow:0 0 10px currentColor, inset 0 -3px 4px rgba(0,0,0,.3);}
+
+    .slots{display:flex; justify-content:center; gap:18px; margin-bottom:10px}
+    .slot{width:76px; height:76px; border-radius:50%;
+      border:2px dashed rgba(120,160,255,.4); background:var(--panel2);
+      display:flex; align-items:center; justify-content:center; font-size:1rem; font-weight:700;
+      cursor:pointer; transition:.25s;}
+    .slot.filled{border-style:solid; border-color:var(--accent); box-shadow:var(--glow); animation:popIn .3s ease both}
+    .slot:hover{transform:scale(1.08)}
+    .plus{align-self:center; font-size:1.6rem; color:var(--accent)}
+    .slotlabel{font-size:.72rem; color:var(--muted); display:block; margin-top:4px}
+
+    canvas#flask{display:block; margin:0 auto; max-width:100%; border-radius:12px}
+
+    .actions{display:flex; gap:10px; justify-content:center; margin-top:12px; flex-wrap:wrap}
+    .actions button{
+      background:linear-gradient(90deg,var(--accent),var(--accent2)); color:#0a0e1a;
+      border:none; border-radius:12px; padding:12px 24px; font-weight:700; font-size:.95rem;
+      cursor:pointer; transition:transform .15s, box-shadow .15s;}
+    .actions button:hover:not(:disabled){transform:translateY(-2px); box-shadow:0 0 22px rgba(90,209,255,.55)}
+    .actions button:active:not(:disabled){transform:scale(.94)}
+    .actions button:disabled{opacity:.4; cursor:not-allowed}
+    .actions button.ghost{background:transparent; color:var(--muted); border:1px solid rgba(120,160,255,.3)}
+    .actions button.ghost:hover{color:var(--text); box-shadow:none; border-color:var(--accent)}
+
+    #banner{margin-top:14px; padding:14px; border-radius:12px; display:none;
+      line-height:1.55; font-size:.92rem; animation:rise .45s ease both;}
+    #banner.ok{display:block; background:rgba(105,240,174,.09); border:1px solid var(--ok); box-shadow:0 0 24px rgba(105,240,174,.18)}
+    #banner.again{display:block; background:rgba(90,209,255,.08); border:1px solid var(--accent)}
+    #banner.bad{display:block; background:rgba(255,138,128,.09); border:1px solid var(--err); animation:shake .4s}
+    .eq{font-size:1.12rem; letter-spacing:.5px; margin:6px 0; color:var(--ok); text-shadow:0 0 12px rgba(105,240,174,.4)}
+    .xpfloat{position:absolute; pointer-events:none; font-weight:800; font-size:1.1rem;
+      color:var(--ok); text-shadow:0 0 10px rgba(105,240,174,.8);
+      animation:floatUp 1.4s ease-out forwards; z-index:5;}
+    @keyframes floatUp{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-70px)}}
+
+    .quest{padding:8px 10px; border-radius:10px; margin-bottom:8px; font-size:.86rem;
+      background:var(--panel2); border:1px solid rgba(120,160,255,.12); transition:.3s}
+    .quest.done{border-color:var(--ok); color:var(--ok); background:rgba(105,240,174,.07)}
+    .quest.done::after{content:" ✔";}
+    .journal div{padding:6px 0; border-bottom:1px solid rgba(120,160,255,.1); font-size:.82rem; color:var(--muted)}
+    .journal div:last-child{border:none}
+    .journal .jeq{color:var(--accent)}
+    .empty{color:var(--muted); font-size:.8rem; font-style:italic; animation:blink 2.5s infinite}
+    #notice{position:fixed; top:18px; left:50%; transform:translateX(-50%) translateY(-80px);
+      background:linear-gradient(90deg,var(--accent),var(--accent2)); color:#0a0e1a;
+      padding:10px 22px; border-radius:14px; font-weight:700; z-index:10;
+      transition:transform .5s cubic-bezier(.2,1.6,.4,1); box-shadow:0 0 30px rgba(90,209,255,.5);}
+    #notice.show{transform:translateX(-50%) translateY(0)}
+
+    .encitem{display:flex; gap:12px; align-items:center; padding:10px;
+      background:var(--panel2); border-radius:12px; margin-bottom:8px;
+      border:1px solid rgba(120,160,255,.12)}
+    .encitem.locked{opacity:.45; filter:grayscale(.8)}
+    .encflask{width:34px; height:44px; border-radius:5px 5px 10px 10px; flex-shrink:0;
+      border:1.5px solid rgba(190,215,235,.5); position:relative; overflow:hidden;
+      background:linear-gradient(90deg, rgba(255,255,255,.25), rgba(255,255,255,.05))}
+    .encflask::before{content:""; position:absolute; left:0; right:0; bottom:0; height:60%;
+      background:var(--liq,transparent)}
+    .encitem b{color:var(--accent)}
+    .encitem small{color:var(--muted); display:block; margin-top:2px}
+
+    .settings label{display:flex; align-items:center; gap:10px; padding:10px 0; font-size:.95rem}
+    .settings .saveinfo{color:var(--muted); font-size:.82rem; margin:10px 0; line-height:1.5}
+    .settings button.danger{background:rgba(255,138,128,.15); color:var(--err);
+      border:1px solid var(--err); border-radius:10px; padding:10px 18px; cursor:pointer; margin-top:8px}
+    .help p{margin:8px 0; color:var(--muted); font-size:.92rem; line-height:1.6}
+    .help b{color:var(--text)}
+  </style>
+</head>
+<body>
+
+<div id="notice"></div>
+
+<header>
+  <h1>⚗️ Алхимик: лаборатория элементов</h1>
+  <div class="xpbar"><div class="fill" id="xpfill"></div><span id="xptext">Опыт: 0 / 60</span></div>
+  <div class="lvltxt" id="lvltext">Уровень 1 — юный химик 🧪</div>
+</header>
+
+<nav>
+  <button data-tab="lab" class="active">🧪 Лаборатория</button>
+  <button data-tab="ency">📖 Энциклопедия</button>
+  <button data-tab="quests">🎯 Задания</button>
+  <button data-tab="help">❓ Как играть</button>
+  <button data-tab="settings">⚙️ Настройки</button>
+</nav>
+
+<!-- ============ ЛАБОРАТОРИЯ ============ -->
+<div class="tabpage active" id="tab-lab">
+  <div class="row">
+    <section class="panel shelf">
+      <h2>Полка реактивов</h2>
+      <div class="shelfunit"><div class="chips" id="shelf"></div></div>
+      <p class="hint">Новые вещества открываются, когда ты получаешь их в реакциях или повышаешь уровень. Кликни по двум бутылкам, чтобы смешать их в колбе. Повторная реакция опыта не даёт.</p>
+    </section>
+
+    <section class="panel lab">
+      <h2>Эксперимент</h2>
+      <div class="slots">
+        <div><div class="slot" id="slotA" onclick="clearSlot(0)">＋</div><span class="slotlabel">реактив 1</span></div>
+        <div class="plus">＋</div>
+        <div><div class="slot" id="slotB" onclick="clearSlot(1)">＋</div><span class="slotlabel">реактив 2</span></div>
+      </div>
+      <canvas id="flask" width="340" height="380"></canvas>
+      <div class="actions">
+        <button id="btnGo" onclick="react()" disabled>Провести реакцию 🔥</button>
+        <button class="ghost" onclick="clearAll()">Очистить</button>
+      </div>
+      <div id="banner"></div>
+    </section>
+
+    <section class="panel side">
+      <h2>Журнал опытов</h2>
+      <div class="journal" id="journal"><div class="empty">Здесь появятся твои открытия…</div></div>
+    </section>
+  </div>
+</div>
+
+<!-- ============ ЭНЦИКЛОПЕДИЯ ============ -->
+<div class="tabpage" id="tab-ency">
+  <div class="panel" style="max-width:760px;margin:0 auto">
+    <h2>📖 Энциклопедия веществ</h2>
+    <p class="hint" style="margin-bottom:14px">Открывается только то, что ты получил в колбе. Найди все вещества!</p>
+    <div id="encyList"></div>
+  </div>
+</div>
+
+<!-- ============ ЗАДАНИЯ ============ -->
+<div class="tabpage" id="tab-quests">
+  <div class="panel" style="max-width:600px;margin:0 auto">
+    <h2>🎯 Задания</h2>
+    <div id="quests"></div>
+  </div>
+</div>
+
+<!-- ============ КАК ИГРАТЬ ============ -->
+<div class="tabpage" id="tab-help">
+  <div class="panel help" style="max-width:640px;margin:0 auto">
+    <h2>❓ Как играть</h2>
+    <p><b>1.</b> Кликни по двум бутылкам на полке — реактивы попадут в круглые слоты над колбой.</p>
+    <p><b>2.</b> Нажми «Провести реакцию». Если вещества совместимы — колба наполнится и начнётся настоящее химическое шоу: вспышки, пламя, пузырьки, осадок.</p>
+    <p><b>3.</b> Продукты реакции появляются на полке — из них можно делать новые реакции. Например: получил воду → погаси ею известь.</p>
+    <p><b>4.</b> Опыт даётся только за новые реакции (+40) и выполнение заданий (+40). Повторить известную реакцию можно сколько угодно — но опыта за неё больше не будет.</p>
+    <p><b>5.</b> Выполняй задания на вкладке «Задания» — за них +40 опыта.</p>
+    <p><b>6.</b> Прогресс сохраняется автоматически: закрой страницу, вернёшься — всё на месте.</p>
+    <p><b>Совет:</b> поднеси курсор к бутылке — увидишь настоящее название вещества.</p>
+  </div>
+</div>
+
+<!-- ============ НАСТРОЙКИ ============ -->
+<div class="tabpage" id="tab-settings">
+  <div class="panel settings" style="max-width:520px;margin:0 auto">
+    <h2>⚙️ Настройки</h2>
+    <label><input type="checkbox" id="sndOn" checked> Звуковые эффекты</label>
+    <label><input type="checkbox" id="animOn" checked> Фоновая анимация колбы (пузырьки в покое)</label>
+    <p class="saveinfo">💾 Прогресс сохраняется автоматически в этом браузере. Если открыть игру на другом устройстве или в другом браузере — прогресс будет свой.</p>
+    <button class="danger" onclick="resetGame()">🗑 Сбросить прогресс</button>
+  </div>
+</div>
+
+<script>
+/* =================== Данные =================== */
+const REAGENTS = {
+  H2:{n:"Водород", c:"#9be7ff", lv:1},   O2:{n:"Кислород", c:"#b3e5fc", lv:1},
+  Cl2:{n:"Хлор", c:"#c8e6c9", lv:2},     N2:{n:"Азот", c:"#b39ddb", lv:3},
+  Na:{n:"Натрий", c:"#ffe0b2", lv:2},    Mg:{n:"Магний", c:"#f5f5f5", lv:1},
+  Zn:{n:"Цинк", c:"#cfd8dc", lv:1},      Fe:{n:"Железо", c:"#a1887f", lv:1},
+  Cu:{n:"Медь", c:"#ffab91", lv:1},
+  CH4:{n:"Метан", c:"#ffe082", lv:1},    CO2:{n:"Углекислый газ", c:"#b0bec5", lv:1},
+  NH3:{n:"Аммиак", c:"#c5e1a5", lv:1},
+  H2O:{n:"Вода", c:"#81d4fa", lv:1},
+  HCl:{n:"Соляная кислота", c:"#b3f0c2", lv:1}, NaOH:{n:"Гидроксид натрия", c:"#b39ddb", lv:1},
+  NaCl:{n:"Поваренная соль", c:"#ffffff", lv:1}, Na2CO3:{n:"Сода", c:"#fff59d", lv:1},
+  AgNO3:{n:"Нитрат серебра", c:"#e0f2f1", lv:1}, AgCl:{n:"Хлорид серебра", c:"#ffffff", lv:1},
+  NaNO3:{n:"Нитрат натрия", c:"#e6ee9c", lv:1},
+  CuSO4:{n:"Сульфат меди", c:"#4dd0e1", lv:1}, FeSO4:{n:"Сульфат железа", c:"#aed581", lv:1},
+  ZnCl2:{n:"Хлорид цинка", c:"#d7ccc8", lv:1},
+  MgO:{n:"Оксид магния", c:"#fafafa", lv:1},
+  CuO:{n:"Оксид меди(II)", c:"#263238", lv:2},
+  CaO:{n:"Негашёная известь", c:"#f5f5f5", lv:2},
+  "Ca(OH)2":{n:"Гашёная известь", c:"#f5f5f5", lv:2},
+  MnO2:{n:"Диоксид марганца", c:"#424242", lv:1},
+  H2O2:{n:"Перекись водорода", c:"#e1f5fe", lv:1},
+  KCl:{n:"Хлорид калия", c:"#f0f4c3", lv:1}
+};
+
+const RECIPES = [
+ {a:"H2",  b:"O2",    p:["H2O"],                type:"boom",   msg:"Гремучий газ! Водород взрывается с кислородом — получается вода ⚡"},
+ {a:"Na",  b:"Cl2",   p:["NaCl"],               type:"flash",  msg:"Натрий вспыхивает в хлоре яркой вспышкой — рождается поваренная соль!"},
+ {a:"HCl", b:"NaOH",  p:["H2O","NaCl"],         type:"heat",   msg:"Нейтрализация: кислота и щёлочь стали солью и водой 🧂"},
+ {a:"Zn",  b:"HCl",   p:["ZnCl2","H2"],         type:"fizz",   msg:"Цинк растворяется с бурным шипением — выделяется водород!"},
+ {a:"Na2CO3", b:"HCl",p:["NaCl","H2O","CO2"],   type:"fizz",   msg:"Сода шипит как газировка — выделяется углекислый газ 🫧"},
+ {a:"Fe",  b:"CuSO4", p:["Cu","FeSO4"],         type:"precip", msg:"Железо вытеснило медь! Гвоздь покрывается красным налётом."},
+ {a:"AgNO3", b:"NaCl",p:["AgCl","NaNO3"],       type:"precip", msg:"Белый творожистый осадок — серебро выпало в осадок!"},
+ {a:"Mg",  b:"O2",    p:["MgO"],                type:"flash",  msg:"Ослепительно-белая вспышка! Так горит магний ✨"},
+ {a:"CH4", b:"O2",    p:["CO2","H2O"],          type:"fire",   msg:"Метан горит голубым пламенем — так работает газовая плита 🔥"},
+ {a:"MnO2", b:"H2O2", p:["MnO2","H2O","O2"],    type:"fizz",   msg:"Катализатор работает! Перекись разложилась в клубах кислорода."},
+ {a:"CaO", b:"H2O",   p:["Ca(OH)2"],            type:"heat",   msg:"Известь «гасится» с шипением и разогревом — идёт тепло!"},
+ {a:"CuO", b:"H2",    p:["Cu","H2O"],           type:"precip", msg:"Водород восстановил чёрный оксид до красной меди."},
+ {a:"N2",  b:"H2",    p:["NH3"],                type:"dye",    msg:"Синтез аммиака — реакция Габера, основа всех удобрений!"},
+];
+
+const QUESTS = [
+ {id:"q1", text:"Получи воду из элементов",  need:"H2O"},
+ {id:"q2", text:"Нейтрализуй кислоту щёлочью", key:"HCl+NaOH"},
+ {id:"q3", text:"Высади медь из раствора",    need:"Cu"},
+ {id:"q4", text:"Устрой белый фейерверк (MgO)", need:"MgO"},
+ {id:"q5", text:"Осади серебро (AgCl)",        need:"AgCl"},
+ {id:"q6", text:"Синтезируй аммиак (NH3)",     need:"NH3"},
+];
+
+const START = ["H2","O2","HCl","NaOH","Zn","Mg","CH4","Fe","CuSO4","NaCl","AgNO3","MnO2","H2O2","Na2CO3"];
+const LEVEL_NAMES = ["юный химик","лаборант","химик-практик","мастер колбы","великий алхимик"];
+const SAVE_KEY = "alchemy_lab_save_v1";
+
+/* =================== Состояние + сохранение =================== */
+let state={
+  xp:0, level:1,
+  known:[...START],
+  done:[],
+  quests:[],
+  sound:true, ambient:true,
+};
+const known=new Set(state.known);
+const doneReactions=new Set();
+const doneQuests=new Set();
+
+function saveState(){
+  try{
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      xp:state.xp,
+      known:[...known],
+      done:[...doneReactions],
+      quests:[...doneQuests],
+      sound:state.sound, ambient:state.ambient
+    }));
+  }catch(e){/* приватный режим — просто не сохраняем */}
+}
+function loadState(){
+  try{
+    const raw=localStorage.getItem(SAVE_KEY);
+    if(!raw)return;
+    const s=JSON.parse(raw);
+    if(typeof s.xp==='number') state.xp=s.xp;
+    (s.known||[]).forEach(id=>{ if(REAGENTS[id]) known.add(id); });
+    (s.done||[]).forEach(k=>doneReactions.add(k));
+    (s.quests||[]).forEach(q=>doneQuests.add(q));
+    if(typeof s.sound==='boolean') state.sound=s.sound;
+    if(typeof s.ambient==='boolean') state.ambient=s.ambient;
+  }catch(e){/* повреждённое сохранение — начинаем заново */}
+}
+loadState();
+
+let slots=[null,null], anim=false;
+const LEVELS=[0,60,120,200,320];
+function levelOf(xp){let l=1;for(let i=1;i<LEVELS.length;i++)if(xp>=LEVELS[i])l=i+1;return l}
+function levelText(l){return LEVEL_NAMES[Math.min(l-1,LEVEL_NAMES.length-1)]}
+
+/* =================== Меню =================== */
+document.querySelectorAll('nav button').forEach(btn=>{
+  btn.onclick=()=>{
+    document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.tabpage').forEach(p=>p.classList.remove('active'));
+    document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+    if(btn.dataset.tab==='ency')renderEnc();
+    if(btn.dataset.tab==='quests')renderQuests();
+  };
+});
+
+/* =================== Звук =================== */
+let AC;
+function sound(f,d,type="sine",v=.12){
+  if(!state.sound)return;
+  try{
+    AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+    const o=AC.createOscillator(),g=AC.createGain();
+    o.type=type; o.frequency.value=f;
+    g.gain.value=v; o.connect(g).connect(AC.destination);
+    g.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+d);
+    o.start(); o.stop(AC.currentTime+d);
+  }catch(e){}
+}
+const pop   = ()=>sound(380+Math.random()*300,.08,"sine",.07);
+const chime = ()=>{sound(660,.15);setTimeout(()=>sound(880,.25),140)};
+const boomS = ()=>sound(70,.6,"sawtooth",.25);
+
+/* =================== Полка =================== */
+function renderShelf(){
+  const box=document.getElementById('shelf'); box.innerHTML="";
+  const curLv=levelOf(state.xp);
+  Object.entries(REAGENTS).forEach(([id,r])=>{
+    const unlocked = known.has(id) || r.lv<=curLv;
+    const b=document.createElement('button');
+    b.className='vial'+(unlocked?'':' locked');
+    if(unlocked){
+      b.title=`${r.n} (${id})` + (known.has(id)&&r.lv>curLv ? " — получено в реакции" : "");
+      b.innerHTML=`<span class="cork"></span><span class="neck"></span>`+
+                  `<span class="glass" style="--liq:${r.c}"></span>`+
+                  `<span class="lbl">${id}</span>`;
+      b.onclick=()=>addToSlot(id);
+    }else{
+      b.title=`Откроется на уровне ${r.lv}`;
+      b.innerHTML=`<span class="cork"></span><span class="neck"></span>`+
+                  `<span class="glass"></span><span class="lbl">🔒</span>`;
+    }
+    box.appendChild(b);
+  });
+}
+
+/* =================== Слоты =================== */
+function addToSlot(id){
+  if(anim)return;
+  if(!slots[0])slots[0]=id; else if(!slots[1])slots[1]=id; else {slots[0]=slots[1];slots[1]=id;}
+  pop(); renderSlots(); hideBanner();
+}
+function clearSlot(i){if(anim)return;slots[i]=null;renderSlots();updateBtn()}
+function clearAll(){if(anim)return;slots=[null,null];renderSlots();hideBanner();targetColor=null;heat=0}
+function renderSlots(){
+  [0,1].forEach(i=>{
+    const el=document.getElementById(i?"slotB":"slotA");
+    const id=slots[i];
+    if(id){
+      el.classList.add('filled');
+      el.innerHTML=`<span class="mini" style="background:${REAGENTS[id].c};color:${REAGENTS[id].c}"></span>${id}`;
+      el.style.background="";
+    }else{
+      el.classList.remove('filled'); el.innerHTML="＋"; el.style.background="";
+    }
+  });
+  updateBtn();
+}
+function updateBtn(){document.getElementById('btnGo').disabled=!(slots[0]&&slots[1])&&!anim}
+
+/* =================== Частицы =================== */
+const cv=document.getElementById('flask'), ctx=cv.getContext('2d');
+const W=cv.width, H=cv.height;
+let particles=[], liquidLevel=0.55, targetColor=null, agitation=0, flashT=0, ringT=-1, heat=0;
+
+const FLASK=new Path2D();
+FLASK.moveTo(150,48); FLASK.lineTo(150,118); FLASK.lineTo(92,290);
+FLASK.quadraticCurveTo(86,310,110,310); FLASK.lineTo(230,310);
+FLASK.quadraticCurveTo(254,310,248,290); FLASK.lineTo(190,118); FLASK.lineTo(190,48);
+FLASK.closePath();
+const INNER=new Path2D();
+INNER.moveTo(156,52); INNER.lineTo(156,118); INNER.lineTo(100,290);
+INNER.quadraticCurveTo(95,304,112,304); INNER.lineTo(228,304);
+INNER.quadraticCurveTo(245,304,240,290); INNER.lineTo(184,118); INNER.lineTo(184,52);
+INNER.closePath();
+
+function spawnBubbles(n){
+  for(let i=0;i<n;i++){
+    particles.push({t:'bubble',
+      x:118+Math.random()*104, y:298-Math.random()*150,
+      r:2+Math.random()*4, vy:-(0.8+Math.random()*1.6),
+      life:60+Math.random()*60});
+  }
+}
+function spawnType(type){
+  const cx=170, cy=180;
+  if(type==='fizz'){agitation=1.4; for(let i=0;i<70;i++)spawnBubbles(1); for(let i=0;i<14;i++)smoke(cx+Math.random()*60-30,128);}
+  if(type==='boom'){boomS(); flashT=1; ringT=0; agitation=2;
+    for(let i=0;i<40;i++)sparks(cx,cy);
+    for(let i=0;i<30;i++)spawnBubbles(1);}
+  if(type==='fire'){heat=1; for(let i=0;i<46;i++)flame(cx-24+Math.random()*48,126); agitation=.9;}
+  if(type==='flash'){flashT=1; agitation=.8;
+    for(let i=0;i<50;i++)sparks(cx+Math.random()*80-40,cy+Math.random()*60-30);}
+  if(type==='heat'){heat=1; for(let i=0;i<26;i++)smoke(cx+Math.random()*60-30,128);}
+  if(type==='precip'){for(let i=0;i<34;i++)particles.push({t:'dot',
+      x:112+Math.random()*116, y:160+Math.random()*80, r:1.5+Math.random()*2.5,
+      vy:.5+Math.random()*1, life:200});}
+  if(type==='dye'){agitation=1;
+    for(let i=0;i<20;i++)particles.push({t:'dye',x:100+Math.random()*140,y:210+Math.random()*70,
+      r:4+Math.random()*8, vy:0, life:80, c:"#c5e1a5"});}
+}
+function smoke(x,y){
+  particles.push({t:'smoke',x,y,r:6+Math.random()*8,vy:-(0.6+Math.random()*0.9),vx:(Math.random()-.5)*.5,life:90+Math.random()*60});
+}
+function sparks(x,y){
+  const a=Math.random()*Math.PI*2, sp=1.5+Math.random()*4;
+  particles.push({t:'spark',x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1.5,life:40+Math.random()*30,
+    c:`hsl(${20+Math.random()*40} 100% 65%)`});
+}
+function flame(x,y){
+  particles.push({t:'flame',x:x+Math.random()*8-4,y,
+    r:4+Math.random()*7, vy:-(1+Math.random()*1.6), life:30+Math.random()*25,
+    c:`hsl(${18+Math.random()*25} 100% 60%)`});
+}
+
+/* =================== Рендер сцены =================== */
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  const t=performance.now()/1000;
+
+  /* ---- деревянный стол ---- */
+  const tg=ctx.createLinearGradient(0,340,0,H);
+  tg.addColorStop(0,"#6d4c41"); tg.addColorStop(1,"#3e2723");
+  ctx.fillStyle=tg; ctx.fillRect(0,342,W,H-342);
+  ctx.strokeStyle="rgba(0,0,0,.35)"; ctx.lineWidth=1;
+  for(let i=0;i<5;i++){ctx.beginPath();ctx.moveTo(0,352+i*8);ctx.lineTo(W,352+i*8);ctx.stroke();}
+
+  /* ---- вспышка ---- */
+  if(flashT>0){
+    ctx.save(); ctx.globalAlpha=flashT*.85;
+    const g=ctx.createRadialGradient(170,180,10,170,180,280);
+    g.addColorStop(0,"#fff"); g.addColorStop(1,"transparent");
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H); ctx.restore();
+    flashT-=.04;
+  }
+  /* ---- ударная волна ---- */
+  if(ringT>=0&&ringT<1){
+    ctx.save(); ctx.globalAlpha=1-ringT; ctx.strokeStyle="#5ad1ff"; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.arc(170,180,ringT*210,0,7); ctx.stroke(); ctx.restore();
+    ringT+=.03;
+  }
+
+  /* ---- горелка Бунзена ---- */
+  ctx.fillStyle="#546e7a"; ctx.fillRect(150,322,40,14);
+  ctx.fillStyle="#78909c"; ctx.fillRect(165,296,10,28);
+  ctx.fillStyle="#37474f"; ctx.fillRect(160,318,20,6);
+  const fl=Math.min(1, .25+heat);
+  for(let i=0;i<3;i++){
+    const fh=(16+Math.sin(t*13+i*2.2)*4)*(0.7+fl), fw=6+fl*5;
+    const fg=ctx.createLinearGradient(170,296,170,296-fh);
+    fg.addColorStop(0,"rgba(90,209,255,.9)");
+    fg.addColorStop(.4,"rgba(255,190,90,.85)");
+    fg.addColorStop(1,"rgba(255,90,40,0)");
+    ctx.fillStyle=fg;
+    ctx.beginPath();
+    ctx.ellipse(170+i*4-4, 296-fh/2, fw/2, fh/2, 0, 0, 7);
+    ctx.fill();
+  }
+
+  /* ---- тень под колбой ---- */
+  ctx.save();
+  ctx.globalAlpha=.4; ctx.fillStyle="#1a0d06";
+  ctx.beginPath(); ctx.ellipse(170,336,86,10,0,0,7); ctx.fill();
+  ctx.restore();
+
+  /* ---- жидкость ---- */
+  const topY=310-180*liquidLevel;
+  ctx.save(); ctx.clip(INNER);
+  if(targetColor){
+    const g=ctx.createLinearGradient(0,topY,0,310);
+    g.addColorStop(0,targetColor); g.addColorStop(1,shade(targetColor,-45));
+    ctx.fillStyle=g;
+    ctx.beginPath();
+    ctx.moveTo(80,topY);
+    const amp=2+agitation*5;
+    for(let x=80;x<=260;x+=6)ctx.lineTo(x,topY+Math.sin(x/22+t*6)*amp);
+    ctx.lineTo(260,312); ctx.lineTo(80,312); ctx.closePath(); ctx.fill();
+    ctx.save(); ctx.clip();
+    particles.forEach(p=>{
+      if(p.t!=='bubble')return;
+      ctx.globalAlpha=Math.min(1,p.life/40);
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,7);
+      ctx.strokeStyle="rgba(255,255,255,.75)"; ctx.lineWidth=1.2; ctx.stroke();
+      ctx.fillStyle="rgba(255,255,255,.15)"; ctx.fill();
+    });
+    particles.forEach(p=>{
+      if(p.t!=='dot')return;
+      ctx.globalAlpha=Math.min(1,p.life/80);
+      ctx.beginPath(); ctx.arc(p.x,Math.min(p.y,300),p.r,0,7);
+      ctx.fillStyle="rgba(255,180,140,.9)"; ctx.fill();
+    });
+    particles.forEach(p=>{
+      if(p.t!=='dye')return;
+      ctx.globalAlpha=p.life/140;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,7); ctx.fillStyle=p.c; ctx.fill();
+    });
+    ctx.restore();
+  }
+  ctx.restore();
+
+  /* ---- дым, искры, пламя ---- */
+  particles.forEach(p=>{
+    if(!['smoke','spark','flame'].includes(p.t))return;
+    ctx.globalAlpha=Math.min(1,p.life/40);
+    if(p.t==='smoke'){
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,7);
+      ctx.fillStyle="rgba(190,200,215,.35)"; ctx.fill();
+    }else{
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.t==='flame'?p.r:p.r*.6,0,7);
+      ctx.fillStyle=p.c; ctx.shadowColor=p.c; ctx.shadowBlur=8; ctx.fill(); ctx.shadowBlur=0;
+    }
+    ctx.globalAlpha=1;
+  });
+
+  /* ---- стекло ---- */
+  const sg=ctx.createLinearGradient(90,0,250,0);
+  sg.addColorStop(0,"rgba(220,240,255,.75)");
+  sg.addColorStop(.5,"rgba(220,240,255,.35)");
+  sg.addColorStop(1,"rgba(220,240,255,.7)");
+  ctx.strokeStyle=sg; ctx.lineWidth=3; ctx.stroke(FLASK);
+  ctx.save(); ctx.clip(FLASK);
+  const hg=ctx.createLinearGradient(158,0,172,0);
+  hg.addColorStop(0,"rgba(255,255,255,0)");
+  hg.addColorStop(.5,"rgba(255,255,255,.18)");
+  hg.addColorStop(1,"rgba(255,255,255,0)");
+  ctx.fillStyle=hg; ctx.fillRect(154,52,20,250);
+  ctx.restore();
+
+  /* ---- пробка ---- */
+  if(slots[0]||slots[1]||anim){
+    ctx.fillStyle="#c8a165";
+    ctx.fillRect(158,34,24,16);
+    ctx.fillStyle="rgba(0,0,0,.2)"; ctx.fillRect(158,46,24,4);
+  }
+
+  /* ---- обновление частиц ---- */
+  particles=particles.filter(p=>{
+    p.life--;
+    if(p.t==='bubble'){p.y+=p.vy; if(p.y<topY+4){p.life=0; if(Math.random()<.3)pop();}}
+    if(p.t==='dot')p.y+=p.vy;
+    if(p.t==='smoke'){p.y+=p.vy; p.x+=p.vx||0; p.r+=.12;}
+    if(p.t==='spark'){p.x+=p.vx; p.y+=p.vy; p.vy+=.12;}
+    if(p.t==='flame'){p.y+=p.vy; p.r*=.97;}
+    return p.life>0;
+  });
+  agitation*=.97; heat*=.985;
+  requestAnimationFrame(draw);
+}
+function shade(hex,amt){
+  const n=parseInt(hex.slice(1),16);
+  let r=(n>>16)+amt,g=((n>>8)&255)+amt,b=(n&255)+amt;
+  r=Math.max(0,Math.min(255,r));g=Math.max(0,Math.min(255,g));b=Math.max(0,Math.min(255,b));
+  return `rgb(${r},${g},${b})`;
+}
+
+/* =================== Реакция =================== */
+function react(){
+  if(anim)return;
+  const key=[slots[0],slots[1]].sort().join('+');
+  const rec=RECIPES.find(r=>[r.a,r.b].sort().join('+')===key);
+  anim=true; updateBtn();
+
+  if(!rec){
+    targetColor="#5a6472"; agitation=1;
+    spawnBubbles(30);
+    const banner=document.getElementById('banner');
+    banner.className='bad';
+    banner.innerHTML=`<b>Ничего не вышло…</b><br>Эти вещества друг с другом не реагируют. Попробуй другую пару — подсказки ждут во вкладке «Задания» 👀`;
+    sound(160,.4,"sine",.1);
+    setTimeout(()=>{anim=false;updateBtn()},900);
+    return;
+  }
+
+  targetColor=blend(REAGENTS[rec.a].c,REAGENTS[rec.b].c);
+  agitation=1; liquidLevel=0.55;
+  setTimeout(()=>runEffect(rec),600);
+}
+function blend(h1,h2){
+  const a=parseInt(h1.slice(1),16), b=parseInt(h2.slice(1),16);
+  const mix=(x,y)=>Math.round(x*0.5+y*0.5);
+  const r=mix(a>>16,b>>16), g=mix((a>>8)&255,(b>>8)&255), bl=mix(a&255,b&255);
+  const h=v=>v.toString(16).padStart(2,'0');
+  return '#'+h(r)+h(g)+h(bl);
+}
+function runEffect(rec){
+  spawnType(rec.type);
+  setTimeout(()=>{
+    const key=[rec.a,rec.b].sort().join('+');
+    const isNew=!doneReactions.has(key);
+    doneReactions.add(key);
+
+    /* --- опыт: только за новое и за квесты --- */
+    let gained=0, extra=[];
+    if(isNew){gained+=40; extra.push("+40 за новое открытие!");}
+
+    let newChips=[];
+    rec.p.forEach(p=>{
+      if(!known.has(p)){known.add(p); newChips.push(p);}
+    });
+
+    QUESTS.forEach(q=>{
+      if(doneQuests.has(q.id))return;
+      const hit=(q.need&&rec.p.includes(q.need))||(q.key&&[rec.a,rec.b].sort().join('+')===q.key);
+      if(hit){doneQuests.add(q.id); gained+=40; extra.push("квест выполнен: +40!");}
+    });
+
+    state.xp+=gained;
+    const oldLv=state.level; state.level=levelOf(state.xp);
+
+    const banner=document.getElementById('banner');
+    const eq=`<div class="eq">${rec.a} + ${rec.b} → ${rec.p.join(' + ')}</div>`;
+
+    if(gained===0){
+      banner.className='again';
+      banner.innerHTML=`${eq}<b>Реакция уже известна.</b> Опыт за повтор не начисляется — но полюбоваться эффектами всегда можно 🙂`;
+    }else{
+      banner.className='ok';
+      banner.innerHTML=`${eq}
+        <b>Что произошло:</b> ${rec.msg}<br>
+        <span style="color:var(--ok);font-weight:700">+${gained} опыта</span>
+        ${extra.length?' <span style="color:var(--muted)">('+extra.join(', ')+')</span>':''}
+        ${newChips.length?`<br>🎉 Новые вещества на полке: <b>${newChips.join(', ')}</b>`:''}`;
+      chime();
+      const lab=document.querySelector('.panel.lab');
+      const f=document.createElement('div'); f.className='xpfloat'; f.textContent='+'+gained;
+      f.style.left=(40+Math.random()*30)+'%'; f.style.top='40%';
+      lab.style.position='relative'; lab.appendChild(f);
+      setTimeout(()=>f.remove(),1400);
+      addJournal(rec);
+    }
+
+    if(newChips.length){markFresh(newChips); notify("Новые реактивы: "+newChips.join(", "));}
+    if(state.level>oldLv)notify(`Уровень ${state.level}: ты теперь ${levelText(state.level)}! 🔓 Открыты новые реактивы`);
+
+    saveState();
+    slots=[null,null]; renderSlots(); renderShelf(); renderXP(); renderQuests(); hideBannerTimer();
+    anim=false; updateBtn();
+  },2200);
+}
+function hideBannerTimer(){
+  const b=document.getElementById('banner');
+  setTimeout(()=>{if(!anim)b.className='';},6000);
+}
+function hideBanner(){document.getElementById('banner').className=''}
+function markFresh(ids){
+  setTimeout(()=>{
+    document.querySelectorAll('.vial').forEach(ch=>{
+      const lbl=ch.querySelector('.lbl');
+      if(lbl&&ids.includes(lbl.textContent))ch.classList.add('fresh');
+    });
+    setTimeout(()=>document.querySelectorAll('.vial.fresh').forEach(c=>c.classList.remove('fresh')),4000);
+  },100);
+}
+function notify(text){
+  const n=document.getElementById('notice');
+  n.textContent=text; n.classList.add('show');
+  setTimeout(()=>n.classList.remove('show'),3500);
+}
+function addJournal(rec){
+  const j=document.getElementById('journal');
+  const emp=j.querySelector('.empty'); if(emp)emp.remove();
+  const d=document.createElement('div');
+  d.innerHTML=`<span class="jeq">${rec.a} + ${rec.b} → ${rec.p.join(' + ')}</span>`;
+  j.prepend(d);
+  while(j.children.length>7)j.lastChild.remove();
+}
+
+/* =================== Панели =================== */
+function renderXP(){
+  const lv=levelOf(state.xp);
+  const next=LEVELS[lv]||LEVELS[LEVELS.length-1]+200;
+  const prev=LEVELS[lv-1]||0;
+  const pct=Math.min(100,((state.xp-prev)/(next-prev))*100);
+  document.getElementById('xpfill').style.width=pct+'%';
+  document.getElementById('xptext').textContent=`Опыт: ${state.xp} / ${next}`;
+  document.getElementById('lvltext').textContent=`Уровень ${lv} — ${levelText(lv)}`;
+}
+function renderQuests(){
+  const box=document.getElementById('quests'); box.innerHTML="";
+  QUESTS.forEach(q=>{
+    const d=document.createElement('div');
+    d.className='quest'+(doneQuests.has(q.id)?' done':'');
+    d.textContent=q.text; box.appendChild(d);
+  });
+}
+function renderEnc(){
+  const box=document.getElementById('encyList'); box.innerHTML="";
+  Object.entries(REAGENTS).forEach(([id,r])=>{
+    const unlocked=known.has(id)||r.lv<=levelOf(state.xp);
+    const ways=RECIPES.filter(rc=>rc.p.includes(id))
+      .map(rc=>`${rc.a} + ${rc.b}`).join(', ');
+    const d=document.createElement('div');
+    d.className='encitem'+(unlocked?'':' locked');
+    d.innerHTML=`<div class="encflask" style="--liq:${r.c}"></div>
+      <div><b>${unlocked?id:'???'}</b> — ${unlocked?r.n:'ещё не открыто'}
+      <small>${unlocked?(ways?('Можно получить: '+ways):'Исходный реактив'):'Получи это вещество в реакциях или открой на уровне '+r.lv}</small></div>`;
+    box.appendChild(d);
+  });
+}
+function renderJournal(){
+  const j=document.getElementById('journal');
+  j.innerHTML='<div class="empty">Здесь появятся твои открытия…</div>';
+  [...doneReactions].slice(-7).reverse().forEach(k=>{
+    const rec=RECIPES.find(r=>[r.a,r.b].sort().join('+')===k);
+    if(rec){
+      const d=document.createElement('div');
+      d.innerHTML=`<span class="jeq">${rec.a} + ${rec.b} → ${rec.p.join(' + ')}</span>`;
+      j.appendChild(d);
+      const emp=j.querySelector('.empty'); if(emp)emp.remove();
+    }
+  });
+}
+
+/* =================== Настройки =================== */
+document.getElementById('sndOn').checked=state.sound;
+document.getElementById('animOn').checked=state.ambient;
+document.getElementById('sndOn').onchange=e=>{state.sound=e.target.checked; saveState();};
+document.getElementById('animOn').onchange=e=>{
+  state.ambient=e.target.checked; saveState();
+  if(!state.ambient)particles=particles.filter(p=>p.t!=='bubble');
+};
+function resetGame(){
+  if(!confirm("Сбросить весь прогресс? Опыт, открытия и квесты исчезнут."))return;
+  try{localStorage.removeItem(SAVE_KEY);}catch(e){}
+  state.xp=0; state.level=1;
+  known.clear(); START.forEach(id=>known.add(id));
+  doneReactions.clear(); doneQuests.clear();
+  slots=[null,null]; targetColor=null; heat=0; particles=[];
+  document.getElementById('journal').innerHTML='<div class="empty">Здесь появятся твои открытия…</div>';
+  renderShelf(); renderSlots(); renderXP(); renderQuests(); hideBanner();
+  notify("Прогресс сброшен. Новая лаборатория ждёт! 🧪");
+}
+
+/* =================== Старт =================== */
+renderShelf(); renderSlots(); renderXP(); renderQuests(); renderEnc(); renderJournal();
+liquidLevel=0.55;
+setInterval(()=>{ if(state.ambient&&!anim&&targetColor&&Math.random()<.4)spawnBubbles(1); },700);
+draw();
+</script>
+</body>
+</html>
